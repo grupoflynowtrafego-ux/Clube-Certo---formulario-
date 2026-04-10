@@ -75,8 +75,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Register dependents in Clube Certo (non-blocking — errors are logged only)
+  console.log('[CC] iniciando registro, deps:', rows.length)
   try {
+    console.log('[CC] chamando getToken...')
     const token = await getToken()
+    console.log('[CC] token obtido, registrando dependentes...')
     let titularRegistered = false
 
     for (const dep of rows) {
@@ -117,8 +120,9 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (err) {
-    console.error('Clube Certo: falha geral:', err)
+    console.error('[CC] falha geral:', String(err))
   }
+  console.log('[CC] bloco finalizado')
 
   return NextResponse.json({ success: true, count: rows.length })
 }
