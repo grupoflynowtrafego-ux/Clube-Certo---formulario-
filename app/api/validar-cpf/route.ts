@@ -18,7 +18,8 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error || !data) {
-    return NextResponse.json({ found: false }, { status: 404 })
+    console.error('Supabase error:', JSON.stringify(error))
+    return NextResponse.json({ found: false, debug: error?.message ?? 'no data' }, { status: 404 })
   }
 
   return NextResponse.json({
