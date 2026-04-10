@@ -74,12 +74,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erro ao salvar. Tente novamente.' }, { status: 500 })
   }
 
-  // Register dependents in Clube Certo (non-blocking — errors are logged only)
-  console.log('[CC] iniciando registro, deps:', rows.length)
+  // Register dependents in Clube Certo
+  const ccResults: { dep: string; ok: boolean; error?: string }[] = []
   try {
-    console.log('[CC] chamando getToken...')
     const token = await getToken()
-    console.log('[CC] token obtido, registrando dependentes...')
     let titularRegistered = false
 
     for (const dep of rows) {
@@ -92,7 +90,6 @@ export async function POST(req: NextRequest) {
       })
 
       if (!result.ok && result.error?.includes('fatherNotFounded') && !titularRegistered) {
-        // Register titular first, then retry dependent
         const titularResult = await registerAssociate(token, {
           name: titular.nome_titular,
           cpf: cpfTitularClean,
@@ -101,9 +98,8 @@ export async function POST(req: NextRequest) {
         })
         titularRegistered = true
         if (!titularResult.ok) {
-          console.error('Clube Certo: erro ao registrar titular:', titularResult.error)
+          ccResults.push({ dep: 'titular', ok: false, error: titularResult.error })
         } else {
-          // Retry dependent
           const retry = await registerAssociate(token, {
             name: dep.nome,
             cpf: dep.cpf,
@@ -111,18 +107,15 @@ export async function POST(req: NextRequest) {
             ...(dep.telefone ? { phone: dep.telefone } : {}),
             fatherCPF: cpfTitularClean,
           })
-          if (!retry.ok) {
-            console.error(`Clube Certo: erro ao registrar dependente ${dep.nome} (retry):`, retry.error)
-          }
+          ccResults.push({ dep: dep.nome, ok: retry.ok, error: retry.error })
         }
-      } else if (!result.ok) {
-        console.error(`Clube Certo: erro ao registrar dependente ${dep.nome}:`, result.error)
+      } else {
+        ccResults.push({ dep: dep.nome, ok: result.ok, error: result.error })
       }
     }
   } catch (err) {
-    console.error('[CC] falha geral:', String(err))
+    ccResults.push({ dep: 'getToken', ok: false, error: String(err) })
   }
-  console.log('[CC] bloco finalizado')
 
-  return NextResponse.json({ success: true, count: rows.length })
+  return NextResponse.json({ success: true, count: rows.length, cc: ccResults })
 }
