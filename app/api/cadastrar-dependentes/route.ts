@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { validateCPF, cleanCPF } from '@/lib/cpf'
-import { getToken, registerAssociate } from '@/lib/clubecerto'
 
 interface DependenteInput {
   nome: string
@@ -74,48 +73,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erro ao salvar. Tente novamente.' }, { status: 500 })
   }
 
-  // Register dependents in Clube Certo
-  const ccResults: { dep: string; ok: boolean; error?: string }[] = []
+  // Disparar webhook n8n para registrar dependentes no Clube Certo
   try {
-    const token = await getToken()
-    let titularRegistered = false
-
-    for (const dep of rows) {
-      const result = await registerAssociate(token, {
-        name: dep.nome,
-        cpf: dep.cpf,
-        ...(dep.email ? { email: dep.email } : {}),
-        ...(dep.telefone ? { phone: dep.telefone } : {}),
-        fatherCPF: cpfTitularClean,
-      })
-
-      if (!result.ok && result.error?.includes('fatherNotFounded') && !titularRegistered) {
-        const titularResult = await registerAssociate(token, {
-          name: titular.nome_titular,
-          cpf: cpfTitularClean,
-          email: titular.email_titular ?? '',
-          phone: titular.telefone_titular ? titular.telefone_titular.replace(/\D/g, '') : '',
-        })
-        titularRegistered = true
-        if (!titularResult.ok) {
-          ccResults.push({ dep: 'titular', ok: false, error: titularResult.error })
-        } else {
-          const retry = await registerAssociate(token, {
-            name: dep.nome,
-            cpf: dep.cpf,
-            ...(dep.email ? { email: dep.email } : {}),
-            ...(dep.telefone ? { phone: dep.telefone } : {}),
-            fatherCPF: cpfTitularClean,
-          })
-          ccResults.push({ dep: dep.nome, ok: retry.ok, error: retry.error })
-        }
-      } else {
-        ccResults.push({ dep: dep.nome, ok: result.ok, error: result.error })
-      }
-    }
+    await fetch('https://webhook.grupoflynow.site/webhook/dependentes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cpfTitular: cpfTitularClean,
+        nomeTitular: titular.nome_titular,
+        dependentes: rows.map((r) => ({
+          nome: r.nome,
+          cpf: r.cpf,
+          email: r.email,
+          telefone: r.telefone,
+        })),
+      }),
+    })
   } catch (err) {
-    ccResults.push({ dep: 'getToken', ok: false, error: String(err) })
+    console.error('Webhook n8n erro:', String(err))
   }
 
-  return NextResponse.json({ success: true, count: rows.length, cc: ccResults })
+  return NextResponse.json({ success: true, count: rows.length })
 }
