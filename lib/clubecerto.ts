@@ -30,8 +30,8 @@ export async function registerAssociate(
     body: JSON.stringify({
       name: data.name,
       cpf: data.cpf,
-      ...(data.email ? { email: data.email } : {}),
-      ...(data.phone ? { phone: data.phone } : {}),
+      email: data.email ?? '',
+      phone: data.phone ?? '',
       ...(data.fatherCPF ? { fatherCPF: data.fatherCPF } : {}),
     }),
   })

@@ -93,8 +93,8 @@ export async function POST(req: NextRequest) {
         const titularResult = await registerAssociate(token, {
           name: titular.nome_titular,
           cpf: cpfTitularClean,
-          ...(titular.email_titular ? { email: titular.email_titular } : {}),
-          ...(titular.telefone_titular ? { phone: titular.telefone_titular.replace(/\D/g, '') } : {}),
+          email: titular.email_titular ?? '',
+          phone: titular.telefone_titular ? titular.telefone_titular.replace(/\D/g, '') : '',
         })
         titularRegistered = true
         if (!titularResult.ok) {
